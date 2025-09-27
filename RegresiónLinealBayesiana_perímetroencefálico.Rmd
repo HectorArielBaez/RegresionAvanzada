@@ -1,0 +1,157 @@
+---
+title: "Regresión Bayesiana con Rstan "
+author: "Ana Laura Ruibal Conti"
+date: "21/09/2025"
+output:
+   html_document:
+     toc: yes
+     code_folding: show
+     toc_float: yes
+     df_print: paged
+     theme: united
+     code_download: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Este es un R Markdown (http:rmarkdown,rstudio.com) que muestra las bases de la estadística bayesiana con Rstan, en el contexto del Análisis de Regresión
+
+#### Paso 1: Creo ambiente de trabajo
+
+1. **Instalación de Librerias**:
+   
+   
+```{r}
+
+# Instalo las librerías necesarias
+
+install.packages("dplyr")#Paquete para manipular datos
+install.packages("rstan", dependencies = TRUE) #Un conector para R la libreria creada en C++ especializada en modelado bayesianao con MCMC
+install.packages("shinystan") #Implementa un shiny para poder observar y diagnosticar el ajuste bayesiano
+install.packages("rstanarm") #wrapers para escribir modelos bayesianos
+install.packages("tidyverse")
+install.packages("ggplot2")
+
+
+# llamo las librerías necesarias
+
+library ("dplyr")#Paquete para manipular datos
+library ("rstan")#Un conector para R la libreria creada en C++ especializada en modelado bayesianao con MCMC
+library ("shinystan") #Implementa un shiny para poder observar y diagnosticar el ajuste bayesiano
+library ("rstanarm") #wrapers para escribir modelos bayesianos
+library ("tidyverse")
+library ("ggplot2")
+```
+2. **Establecer Directorio de Trabajo**:
+
+```{r}
+dir()
+getwd()
+path<-"C:/Users/user/Dropbox/Documents INA_CIRSA 2015/Personal/Capacitacion Personal/2023/Universidad Austral/Materias_Austral/12_Regresión Avanzada/Examen/2025_09_Examen/Datos"
+
+```
+
+3. **Cargar los datos**:
+
+```{r}
+#data <- read_excel(file.path(path, "BASE_TRABAJO.xlsx"))
+url <- "https://www.sfu.ca/~mcneney/Teaching/Stat302/Data/lowbwt.csv"
+datos <- read.csv(url, header = TRUE) #(datos publicados en  Levinton, Fenton, Kuban y Pagano 1991,trataod en el libro de Pagano et al. )
+datos
+
+head(datos)
+names(datos)
+summary(datos)
+str(datos) # Para ver la estructura de los datos
+
+ggplot(datos, aes(gestage, headcirc))+geom_point()
+attach(datos)
+
+```
+
+ 
+#### Enfoque frecuentista
+ 
+```{r}
+ajuste.freq <- lm(headcirc ~ gestage, data = datos)
+
+summary(ajuste.freq)
+ggplot(datos, aes(x = gestage, y = headcirc)) + 
+  geom_point() +
+  geom_abline(intercept = coef(ajuste.freq)[1],
+              slope = coef(ajuste.freq)[2],
+              color = "blue") +
+  labs(title = "Regresión lineal: perímetro cefálico vs edad gestacional",
+       x = "Edad gestacional (semanas)",
+       y = "Perímetro cefálico (cm)")
+```
+ 
+#### Enfoque Bayesiano
+
+**1) Cargar los datos en una estructura que le sirva a la libreria STan**
+
+```{r}
+# 1) Cargar los datos en una estructura que le sirva a la libreria STan
+#### Creamos una lista
+dat <- list(
+  N = nrow(datos),
+  P = 2,#cantidad de variables B0 y B1
+  y = datos$headcirc,
+  x = datos$gestage
+)
+
+dat
+
+```
+
+**2) Construir el modelo Bayesiano.**
+
+```{r}
+# 2) Construir el modelo Bayesiano. Tenemos que decirle como vamos a modelar los parámetros de la regresion
+#### Tenemos que decirle:
+#### a) cuales van a ser las distribuciones a priori de los parametros y
+#### b) el modelo (likehood) Y ~ N(β0+β1x,σ) cual va a ser el modelo que va a relacionar la y y la x con los #### parametros de los modelos. Se hace en otro achivo de texto .stan
+
+#modelo<-stan_model("Bayesian Statistic with Rstan.stan")
+#class(modelo)
+archivo<-"BayesianStatistics with Rstan.stan"
+stan_code<-readChar(archivo, file.info(archivo)$size)
+    
+
+```
+
+**3) Correr el modelo Bayesiano**
+```{r}
+options(nC.cores=4)
+
+
+ajuste<-stan(model_code=stan_code,data=dat, chains=3,iter=4000, warmup=1000, thin=1)
+## Show traceplot
+traceplot(ajuste, pars=c("alpha", "beta", "sigma"), inc_warmup=TRUE)
+
+
+
+```
+  
+**4) Inferencia**
+```{r}
+ajuste
+plot(ajuste)
+
+```
+  
+**4) Resultados**
+```{r}
+
+# Extraer los parámetros de interés
+res.def <- data.frame(
+  alpha = rstan::extract(ajuste, pars = "alpha")$alpha,
+  beta  = rstan::extract(ajuste, pars = "beta")$beta,
+  sigma = rstan::extract(ajuste, pars = "sigma")$sigma
+)
+
+res.def
+
+```
